@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<style type="text/css">
+	body {
+		margin: 0;
+		width: 100vw;
+		height: 100vh;
+		background-color: gray;
+	}
+</style>
+<script type="text/javascript">
+	Math.direction = (x1, y1, x2, y2) => {
+		var a,b,c,q;
+		if(y1<=y2){if (x1<x2){q=0;}}
+		if(y1<y2){if (x1>=x2){q=1;}}
+		if(y1>=y2){if (x1>x2){q=2;}}
+		if(y1>y2){if( x1<=x2){q=3;}}
+		a = Math.abs(x1-x2);
+		b = Math.abs(y1-y2);
+		if(x1!=x2&&y1!=y2){if(q==1||q==3){c=a/b;}else{c=b/a;}}else{c=0;}
+		return(Math.atan(c)+q*(Math.PI*0.5));
+	}
+	Math.angleDifference = (a1, a2) => {
+		var d;
+		a1%=Math.PI*2;
+		a2%=Math.PI*2;
+		d=a2-a1;
+		if(d>Math.PI){d-=Math.PI*2;}
+		if(d<-Math.PI){d+=Math.PI*2;}
+		return (d);
+	}
+	Math.intersectLinear = (x1, y1, x2, y2, x3, y3, x4, y4) => {
+		var a,b,c,d,x,y,i;
+		i=0;
+		a=(y1-y2)/(x1-x2);
+		c=(y3-y4)/(x3-x4);
+		b=y1-a*x1;
+		d=y3-c*x3;
+		if(a!=c){
+			x=(b-d)/(c-a);
+			if(x1==x2){x=x1;y=c*x+d;}
+			if(x3==x4){x=x3;y=a*x+b;}
+			if(x1!=x2&&x3!=x4){y=a*x+b;}
+		}else{x=0;y=0;i=-1;}
+		if(x1<x2){if(x>=x1&&x<=x2){i+=0.5;}}else{if(x<=x1&&x>=x2){i+=0.5;}}
+		if(x3<x4){if(x>=x3&&x<=x4){i+=0.5;}}else{if(x<=x3&&x>=x4){i+=0.5;}}
+		return{x:x,y:y,i:Math.floor(i)};
+	}
+	Math.distance = (x1, y1, x2, y2) => {
+		let a,b,r;
+		a=Math.abs(x1-x2);
+		b=Math.abs(y1-y2);
+		r=b/Math.sin(Math.atan(b/a));
+		if(y1==y2){r=a;}
+		return (r);
+	}
+	Math.bounce = (a, n) => {
+		return ((n + (n - a) + Math.PI) % (Math.PI * 2));
+	}
+	Math.sameArea = (x1, y1, x2, y2, x3, y3) => {
+		var n = Math.direction(x1, y1, x2, y2);
+		var l = Math.distance(x1, y1, x2, y2);
+
+		var o = Math.angleDifference(n, Math.direction(x1, y1, x3, y3));
+		var h = Math.distance(x1, y1, x3, y3);
+
+		var a = h * Math.cos(o);
+
+		var r;
+		if (o <= Math.PI * 0.5 && o >= -Math.PI * 0.5 && a <= l) {return (1);}
+		return (0);
+	}
+	Math.rotatePoint = (x, y, a) => {
+		return ([
+			Math.cos(a) * x - Math.sin(a) * y,
+			Math.cos(a) * y + Math.sin(a) * x
+			]);
+	}
+	Math.bounceTrajectory = (walls, x, y, d, s) => {
+
+		var wn = (new Array(walls.length)).fill(0);
+		for (i in wn) {
+			wn[i] = (Math.direction(...walls[i]) + Math.PI * 0.5);
+		}
+		var mx = x;
+		var my = y;
+		var mv = s;
+		var md = d;
+
+		var b = 0;
+		var btd = [];
+		if (md % (Math.PI * 0.5) == 0) {md += 0.0000001;}
+
+		var fx = mx + Math.cos(d) * mv;
+		var fy = my + Math.sin(d) * mv;
+
+		var currentBounce = -1;
+
+		do {
+			var closest = mv + 1;
+			var intersectLinear = [];
+			var intersectDistance = [];
+			var intersect = [];
+			for (i in walls) {
+				intersectLinear.push(Math.intersectLinear(mx, my, fx, fy, ...wall[i]));
+				intersectDistance.push(Math.distance(mx, my, intersectLinear[i].x, intersectLinear[i].y).toFixed(8));
+				intersect.push(Math.sameArea(...walls[i], intersectLinear[i].x, intersectLinear[i].y) * intersectLinear[i].i);
+			}
+			if (currentBounce != -1) {intersect[currentBounce] = 0;}
+			currentBounce = -1;
+			for (i in intersect) {
+				if (intersect[i]) {
+					if (closest >= intersectDistance[i]) {
+						closest = intersectDistance[i];
+						currentBounce = i;
+					}
+				}
+			}
+			if (currentBounce != -1) {
+				btd.push([mx, my, intersectLinear[currentBounce].x, intersectLinear[currentBounce].y]);
+				mx = intersectLinear[currentBounce].x;
+				my = intersectLinear[currentBounce].y;
+
+				md = Math.bounce(md, wn[currentBounce]);
+				mv -= intersectDistance[currentBounce];
+
+				fx = intersectLinear[currentBounce].x + Math.cos(md) * mv;
+				fy = intersectLinear[currentBounce].y + Math.sin(md) * mv;
+
+				b ++;
+			} else {btd.push([mx, my, fx, fy]);}		
+		} while (currentBounce != -1);
+
+		return ({x: fx, y: fy, d: md, b: b, btd: btd});
+	}
+
+	const FPS = 1000/60;
+
+	var input = {
+		key: {
+			setup: [['w', 87], ['s', 83], ['a', 65], ['d', 68]],
+			stack: {d: [], u: []},
+		},
+		initialize: () => {
+			for (i in input.key.setup) {
+				input.key[input.key.setup[i][0]] = {d: 0, u: 0, p: 0};
+			}
+			document.body.onmousemove = function(){mouseCoords(event);}
+			document.body.onmousedown = function(){mouseDown(event);}
+			document.body.onmouseUp = function(){mouseUp(event);}
+			document.body.onkeydown = function(){input.keyDown(event);}
+			document.body.onkeyup = function(){input.keyUp(event);}
+		},
+		mainBegin: () => {
+			for (i in  input.key.stack.u) {
+				input.key[input.key.stack.u[i]].p = 0;
+			}
+		},
+		mainEnd: () => {
+			for (i in  input.key.stack.d) {
+				input.key[input.key.stack.d[i]].d = 0;
+			}
+			input.key.stack.d = [];
+			for (i in  input.key.stack.u) {
+				input.key[input.key.stack.u[i]].u = 0;
+			}	
+			input.key.stack.u = [];
+		},
+		keyDown: (e) => {
+			for (i in  input.key.setup) {
+				if (e.keyCode === input.key.setup[i][1] && !input.key[input.key.setup[i][0]].p) {
+					input.key[input.key.setup[i][0]].d = 1; 
+					input.key[input.key.setup[i][0]].p = 1; 
+					input.key.stack.d.push(input.key.setup[i][0]);
+				}
+			}
+		},
+		keyUp: (e) => {
+			for (i in  input.key.setup) {
+				if (e.keyCode === input.key.setup[i][1]){input.key[input.key.setup[i][0]].u = 1; input.key.stack.u.push(input.key.setup[i][0]);}
+			}
+		},
+		mouse: {
+			x: 0,
+			y: 0,
+			left: {d: 0, u: 0, p: 0},
+			right: {d: 0, u: 0, p: 0},
+		},
+	};
+
+
+	var ball = {x: 350, y: 250, d: Math.random() * (Math.PI * 2), s: 10};
+	var intersect = [0, 0, 0, 0];
+	var wall = [[0, 0, 1, 0], [1, 0, 1, 1], [1, 1, 0, 1], [0, 1, 0, 0], [0, 0, 0, 0]];
+
+	var transform = [22.5, 450, 250, 350, 250];//rotation, scaleX, scaleY, translateX, translateY
+	for (i in wall) {
+
+		wall[i] = wall[i].map((v) => {return (v - 0.5);});
+
+		wall[i] = [
+		...Math.rotatePoint(wall[i][0] * transform[1], wall[i][1] * transform[2], transform[0]),
+		...Math.rotatePoint(wall[i][2] * transform[1], wall[i][3] * transform[2], transform[0])
+		];
+		wall[i][0] += transform[3]; wall[i][2] += transform[3];
+		wall[i][1] += transform[4]; wall[i][3] += transform[4];
+	}
+	var wallNormal = [0, 0, 0, 0];
+	for (i in wallNormal) {
+		wallNormal[i] = (Math.direction(...wall[i]) + Math.PI * 0.5);
+	}
+
+	var tdata;
+
+	var player = 200;
+	wall[4][0] = 500;
+	wall[4][2] = 500;
+
+	wall[4][1] = 50 + player;
+	wall[4][3] = wall[4][1] + 100;
+
+	function main() {
+		input.mainBegin();
+
+		if (input.key.w.p) {player -= 15;}
+		if (input.key.s.p) {player += 15;}
+
+		wall[4][1] = 50 + player;
+		wall[4][3] = wall[4][1] + 100;
+
+		var b = Math.bounceTrajectory(wall, ball.x, ball.y, ball.d, ball.s);
+		ball.x = b.x; ball.y = b.y; ball.d = b.d; tdata = b.btd;
+		if (b.b) {ball.s +=tdata.length * 0.05;}
+		
+		draw();
+		input.mainEnd();
+	}
+	function draw() {
+		c.fillStyle = "rgb(0, 0, 0)";
+		c.fillRect(0,0,700,500);
+
+		c.fillStyle = "rgb(255, 255, 255)";
+		c.fillRect(ball.x - 5, ball.y - 5, 10, 10);
+
+		c.lineWidth = 10;
+		for (i in tdata) {
+			var gradient = c.createLinearGradient(tdata[i][0], tdata[i][1], tdata[i][2], tdata[i][3]);
+			gradient.addColorStop("0", "rgba(255,255,255," + ((i) / tdata.length + 0.2) + ")");
+			gradient.addColorStop("1", "rgba(255,255,255," + ((i + 1) / tdata.length) + ")");
+			c.strokeStyle = gradient;
+
+			c.drawLine(...tdata[i]);
+		}
+		c.strokeStyle = "rgb(255, 0, 0)";
+		for (i in wall) {
+			c.drawLine(...wall[i]);
+		}
+	}
+
+	window.onload = function() {
+		var mainCanvas = document.getElementById("mainCanvas");
+
+		c = mainCanvas.getContext("2d");
+		c.fillStyleRGB = function(r, g, b, a) {this.fillStyle = "rgb(" + (r) + ", " + (g) + ", " + (b) + ")"}
+		c.fillStyleRGBA = function(r, g, b, a) {this.fillStyle = "rgba(" + (r) + ", " + (g) + ", " + (b) + ", " + (a) + ")"}
+		c.drawLine = function(x1, y1, x2, y2) {this.beginPath(); this.moveTo(x1, y1); this.lineTo(x2, y2); this.stroke();}
+
+		input.initialize();
+		
+
+		setInterval(function(){main()}, FPS);
+	}
+	function mouseCoords(e){
+		input.mouse.x = e.clientX;
+		input.mouse.y = e.clientY;
+	}
+	function mouseDown(e) {
+
+	}
+	function mouseUp(e) {
+
+	}
+
+
+
+</script>
+</head>
+<body>
+	<canvas id="mainCanvas" width=700 height=500 style="box-sizing: border-box; position: absolute; left: 50%; transform: translateX(-50%);"><canvas>
+</body>
+</html>
